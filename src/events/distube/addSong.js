@@ -1,4 +1,4 @@
-const { EmbedBuilder, Colors } = require("discord.js");
+const { EmbedBuilder } = require("discord.js");
 const { formatTime } = require("../../utils/formatTime");
 
 module.exports = {
@@ -9,16 +9,19 @@ module.exports = {
                 queue.textChannel = song.metadata.message.channel;
             }
 
-            if (queue.client.config.enableLogging) console.log(queue.client.localization.get('events.addSong', { song: song.name, duration: formatTime(song.duration), user: song.user.tag }));
-
             if (queue.textChannel && typeof queue.textChannel.send === "function") {
                 const embed = new EmbedBuilder()
-                    .setColor(Colors.Blue)
-                    .setDescription(queue.client.localization.get('events.addSong', { song: song.name, duration: formatTime(song.duration), user: song.user.tag }));
+                    .setColor("#E040FB") // Neon Purple
+                    .setAuthor({ name: "تمت إضافة أغنية جديدة", iconURL: song.user.displayAvatarURL() })
+                    .setDescription(`**[${song.name}](${song.url})**`)
+                    .addFields(
+                        { name: "⏱️ المدة", value: `\`${formatTime(song.duration)}\``, inline: true },
+                        { name: "👤 بواسطة", value: `\`${song.user.username}\``, inline: true }
+                    )
+                    .setThumbnail(song.thumbnail)
+                    .setFooter({ text: "نظام الموسيقى المتطور" });
 
                 queue.textChannel.send({ embeds: [embed] }).catch(console.error);
-            } else {
-                console.error("❌ AddSong event queue text channel is not text-based.");
             }
         } catch (error) {
             console.error("❌ Error in addSong event:", error);

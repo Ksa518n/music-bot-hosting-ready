@@ -8,7 +8,6 @@ function registerCustomFonts() {
         registerFont(path.join(__dirname, 'fonts', 'Roboto-Bold.ttf'), { family: 'Roboto', weight: 'bold' });
         registerFont(path.join(__dirname, 'fonts', 'Roboto-Regular.ttf'), { family: 'Roboto', weight: 'regular' });
         registerFont(path.join(__dirname, 'fonts', 'Roboto-Italic.ttf'), { family: 'Roboto', weight: 'italic' });
-        console.log("✅ Custom fonts registered successfully.");
     } catch (error) {
         console.error("❌ Error registering custom fonts:", error);
     }
@@ -66,17 +65,9 @@ async function getImageBuffer(url) {
     try {
         const response = await fetch(url);
         if (!response.ok) throw new Error(`Failed to fetch image: ${response.statusText}`);
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.startsWith('image/')) {
-            throw new Error(`Unsupported image type: ${contentType}`);
-        }
         const buffer = await response.arrayBuffer();
         const imageBuffer = Buffer.from(buffer);
-
-        const jpegBuffer = await sharp(imageBuffer)
-            .jpeg()
-            .toBuffer();
-
+        const jpegBuffer = await sharp(imageBuffer).jpeg().toBuffer();
         return jpegBuffer;
     } catch (error) {
         console.error("❌ Error fetching or converting image buffer:", error);
@@ -86,133 +77,106 @@ async function getImageBuffer(url) {
 
 async function generateMusicCard(song, currentTime, totalTime, queue) {
     try {
-        if (!song) {
-            throw new Error("Song object is undefined.");
-        }
+        if (!song) throw new Error("Song object is undefined.");
 
         const width = 1200;
         const height = 500;
         const canvas = createCanvas(width, height);
         const ctx = canvas.getContext('2d');
 
-        ctx.antialias = 'subpixel';
-
-        const gradient = ctx.createLinearGradient(0, 0, width, height);
-        gradient.addColorStop(0, '#141E30');
-        gradient.addColorStop(1, '#243B55');
-        ctx.fillStyle = gradient;
+        // Background: Deep Purple / Dark Gradient
+        const bgGradient = ctx.createLinearGradient(0, 0, width, height);
+        bgGradient.addColorStop(0, '#0F0C29');
+        bgGradient.addColorStop(0.5, '#302B63');
+        bgGradient.addColorStop(1, '#24243E');
+        ctx.fillStyle = bgGradient;
         ctx.fillRect(0, 0, width, height);
 
-        ctx.fillStyle = 'rgba(20, 30, 48, 0.3)';
-        ctx.fillRect(0, 0, width, height);
+        // Glassmorphism Overlay
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+        drawRoundedRect(ctx, 30, 30, width - 60, height - 60, 40);
+        ctx.fill();
 
-        const thumbnailSize = 300;
-        const thumbnailX = 50;
+        // Thumbnail
+        const thumbnailSize = 320;
+        const thumbnailX = 60;
         const thumbnailY = (height - thumbnailSize) / 2;
         let thumbnail;
         try {
-            if (!song.thumbnail) {
-                throw new Error("Song thumbnail is undefined.");
-            }
-            const buffer = await getImageBuffer(song.thumbnail);
+            const buffer = await getImageBuffer(song.thumbnail || 'https://via.placeholder.com/320');
             thumbnail = await loadImage(buffer);
         } catch (err) {
-            console.error("❌ Error loading thumbnail image:", err);
-            try {
-                thumbnail = await loadImage('https://media.wickdev.me/IGG6cyadBh.png');
-            } catch (fallbackErr) {
-                console.error("❌ Error loading fallback thumbnail image:", fallbackErr);
-                return null;
-            }
+            thumbnail = await loadImage('https://via.placeholder.com/320');
         }
 
         ctx.save();
-        drawRoundedRect(ctx, thumbnailX, thumbnailY, thumbnailSize, thumbnailSize, 20);
+        drawRoundedRect(ctx, thumbnailX, thumbnailY, thumbnailSize, thumbnailSize, 30);
         ctx.clip();
         ctx.drawImage(thumbnail, thumbnailX, thumbnailY, thumbnailSize, thumbnailSize);
         ctx.restore();
 
-        ctx.strokeStyle = '#66FCF1';
-        ctx.lineWidth = 5;
-        drawRoundedRect(ctx, thumbnailX, thumbnailY, thumbnailSize, thumbnailSize, 20);
+        // Neon Border for Thumbnail
+        ctx.strokeStyle = '#E040FB'; // Purple Neon
+        ctx.lineWidth = 8;
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = '#E040FB';
+        drawRoundedRect(ctx, thumbnailX, thumbnailY, thumbnailSize, thumbnailSize, 30);
         ctx.stroke();
-
-        ctx.fillStyle = '#FFFFFF';
-        ctx.font = 'bold 50px Roboto';
-        ctx.textBaseline = 'top';
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-        ctx.shadowBlur = 10;
-        const maxTitleWidth = 700;
-        const maxTitleChars = 50;
-        wrapAndTruncateText(ctx, song.name, 400, 50, maxTitleWidth, maxTitleChars, 60);
-        ctx.shadowColor = 'transparent';
         ctx.shadowBlur = 0;
 
-        ctx.fillStyle = '#66FCF1';
-        ctx.font = '28px Roboto';
-        const authorText = song.user ? `By ${song.user.username}` : 'By Unknown';
-        const maxAuthorWidth = 700;
-        const maxAuthorChars = 40;
-        wrapAndTruncateText(ctx, authorText, 400, 290, maxAuthorWidth, maxAuthorChars, 35);
+        // Title
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = 'bold 55px Roboto';
+        ctx.textBaseline = 'top';
+        wrapAndTruncateText(ctx, song.name, 420, 70, 720, 45, 65);
 
-        if (song.album && song.album.name) {
-            ctx.fillStyle = '#C5C6C7';
-            ctx.font = '24px Roboto';
-            const albumText = `Album: ${song.album.name}`;
-            const maxAlbumWidth = 700;
-            const maxAlbumChars = 50;
-            wrapAndTruncateText(ctx, albumText, 400, 210, maxAlbumWidth, maxAlbumChars, 30);
-        }
+        // Subtitle (Artist/Uploader)
+        ctx.fillStyle = '#B388FF'; // Light Purple
+        ctx.font = '30px Roboto';
+        const authorText = song.user ? `Requested by ${song.user.username}` : 'Music Bot';
+        ctx.fillText(authorText, 420, 220);
 
-        if (song.genre || song.releaseDate) {
-            ctx.fillStyle = '#C5C6C7';
-            ctx.font = '24px Roboto';
-            const genreText = song.genre ? `Genre: ${song.genre}` : '';
-            const releaseDateText = song.releaseDate ? `Released: ${song.releaseDate}` : '';
-            const combinedText = [genreText, releaseDateText].filter(text => text).join(' | ');
-            const maxInfoWidth = 700;
-            const maxInfoChars = 60;
-            wrapAndTruncateText(ctx, combinedText, 400, 260, maxInfoWidth, maxInfoChars, 30);
-        }
-
-        const progressBarWidth = 700;
-        const progressBarHeight = 30;
-        const progressBarX = 400;
-        const progressBarY = 330;
-        ctx.fillStyle = '#3A3B3C';
-        drawRoundedRect(ctx, progressBarX, progressBarY, progressBarWidth, progressBarHeight, 15);
+        // Progress Bar Background
+        const barWidth = 720;
+        const barHeight = 12;
+        const barX = 420;
+        const barY = 320;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+        drawRoundedRect(ctx, barX, barY, barWidth, barHeight, 6);
         ctx.fill();
 
-        const progress = Math.min(currentTime / totalTime, 1) * progressBarWidth;
-        const gradientProgress = ctx.createLinearGradient(progressBarX, 0, progressBarX + progress, 0);
-        gradientProgress.addColorStop(0, '#66FCF1');
-        gradientProgress.addColorStop(1, '#45A29E');
-        ctx.fillStyle = gradientProgress;
-        drawRoundedRect(ctx, progressBarX, progressBarY, progress, progressBarHeight, 15);
+        // Progress Bar Active
+        const progress = Math.min(currentTime / totalTime, 1) * barWidth;
+        const progGradient = ctx.createLinearGradient(barX, 0, barX + barWidth, 0);
+        progGradient.addColorStop(0, '#7C4DFF');
+        progGradient.addColorStop(1, '#E040FB');
+        ctx.fillStyle = progGradient;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = '#E040FB';
+        drawRoundedRect(ctx, barX, barY, progress, barHeight, 6);
         ctx.fill();
+        ctx.shadowBlur = 0;
 
-        ctx.fillStyle = '#C5C6C7';
+        // Time Text
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '22px Roboto';
+        const timeText = `${formatTime(currentTime)} / ${formatTime(totalTime)}`;
+        ctx.fillText(timeText, barX, barY + 30);
+
+        // Stats (Volume, Loop)
         ctx.font = '20px Roboto';
-        const currentFormatted = formatTime(currentTime);
-        const totalFormatted = formatTime(totalTime);
-        ctx.fillText(`${currentFormatted} / ${totalFormatted}`, progressBarX, progressBarY + 40);
+        ctx.fillStyle = '#B0BEC5';
+        ctx.fillText(`🔊 ${queue.volume}%`, 420, 390);
+        const loopText = queue.repeatMode === 0 ? "Off" : queue.repeatMode === 1 ? "Song" : "Queue";
+        ctx.fillText(`🔁 ${loopText}`, 550, 390);
 
-        ctx.fillStyle = '#C5C6C7';
-        ctx.font = '20px Roboto';
-        ctx.fillText(`Volume: ${queue.volume}%`, 400, 390);
-        const repeatModeText = queue.repeatMode === 0 ? "Off" :
-            queue.repeatMode === 1 ? "Repeat Song" :
-                "Repeat Queue";
-        ctx.fillText(`Repeat: ${repeatModeText}`, 600, 390);
-
-        ctx.strokeStyle = '#66FCF1';
-        ctx.lineWidth = 5;
-        drawRoundedRect(ctx, 20, 20, width - 40, height - 40, 25);
+        // Final Glow Border
+        ctx.strokeStyle = 'rgba(224, 64, 251, 0.3)';
+        ctx.lineWidth = 4;
+        drawRoundedRect(ctx, 15, 15, width - 30, height - 30, 50);
         ctx.stroke();
 
-        const buffer = canvas.toBuffer();
-        console.log("💾 Music card image buffer generated.");
-        return buffer;
+        return canvas.toBuffer();
     } catch (error) {
         console.error("❌ Error generating music card:", error);
         return null;
